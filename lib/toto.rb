@@ -178,6 +178,22 @@ module Toto
       def method_missing m, *args, &blk
         @context.respond_to?(m) ? @context.send(m, *args, &blk) : super
       end
+
+      # A hack to load "partials"
+      def partial(name = nil, locals = {})
+        klass = Class.new do
+          attr_accessor :locals
+          def initialize(locals)
+            @locals = locals
+          end
+        end
+
+        ERB.new(File.read("templates/pages/_#{name}.rhtml")).result(klass.new(locals).send(:binding))
+      end
+    end
+
+    def u(unescaped)
+      CGI::escape(unescaped)
     end
   end
 
@@ -296,8 +312,12 @@ module Toto
       :ext => 'txt',                                        # extension for articles
       :cache => 28800,                                      # cache duration (seconds)
       :github => {:user => "", :repos => [], :ext => 'md'}, # Github username and list of repos
-      :to_html => lambda {|path, page, ctx|                 # returns an html, from a path & context
-        ERB.new(File.read("#{path}/#{page}.rhtml")).result(ctx)
+      :to_html => lambda { |path, page, ctx|                # returns an html, from a path & context
+        if File.exists? "#{path}/#{page}.txt"
+          Markdown.new(File.read("#{path}/#{page}.txt").strip).to_html
+        else
+          ERB.new(File.read("#{path}/#{page}.rhtml")).result(ctx)
+        end
       },
       :error => lambda {|code|                              # The HTML for your error page
         "<font style='font-size:300%'>toto, we're not in Kansas anymore (#{code})</font>"
